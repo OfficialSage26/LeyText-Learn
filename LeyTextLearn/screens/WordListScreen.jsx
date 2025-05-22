@@ -1,14 +1,29 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Picker } from '@react-native-picker/picker';
+
+const categories = ['All', 'Greetings', 'Food', 'Travel', 'Numbers', 'Market'];
+const languageOptions = ['English', 'Tagalog', 'Bisaya', 'Waray-Waray'];
 
 const WordListScreen = () => {
   const [words, setWords] = useState([]);
   const [word, setWord] = useState('');
   const [meaning, setMeaning] = useState('');
+  const [category, setCategory] = useState('Greetings');
+  const [filter, setFilter] = useState('All');
   const [editingIndex, setEditingIndex] = useState(null);
+  const [sourceLang, setSourceLang] = useState('English');
+  const [targetLang, setTargetLang] = useState('Waray-Waray');
 
-  // Load saved words
   useEffect(() => {
     loadWords();
   }, []);
@@ -25,24 +40,31 @@ const WordListScreen = () => {
   };
 
   const handleSave = () => {
-    if (!word || !meaning) return Alert.alert('Error', 'Fill in both fields.');
+    if (!word || !meaning) {
+      Alert.alert('Error', 'Please enter both word and meaning.');
+      return;
+    }
 
     let updatedWords = [...words];
 
+    const newWord = {
+      word,
+      meaning,
+      category,
+      sourceLang,
+      targetLang,
+    };
+
     if (editingIndex !== null) {
-      updatedWords[editingIndex] = { ...updatedWords[editingIndex], word, meaning };
+      updatedWords[editingIndex] = newWord;
     } else {
-      updatedWords.push({
-        word,
-        meaning,
-        fromLang: 'English',
-        toLang: 'Waray-Waray',
-      });
+      updatedWords.push(newWord);
     }
 
     saveWords(updatedWords);
     setWord('');
     setMeaning('');
+    setCategory('Greetings');
     setEditingIndex(null);
   };
 
@@ -50,6 +72,9 @@ const WordListScreen = () => {
     const selected = words[index];
     setWord(selected.word);
     setMeaning(selected.meaning);
+    setCategory(selected.category);
+    setSourceLang(selected.sourceLang);
+    setTargetLang(selected.targetLang);
     setEditingIndex(index);
   };
 
@@ -68,10 +93,18 @@ const WordListScreen = () => {
     ]);
   };
 
+  const filteredWords = words.filter(
+    (w) =>
+      (filter === 'All' || w.category === filter) &&
+      w.sourceLang === sourceLang &&
+      w.targetLang === targetLang
+  );
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Word List</Text>
+      <Text style={styles.title}>LeyText Learn - Word List</Text>
 
+      {/* Input Fields */}
       <TextInput
         style={styles.input}
         placeholder="Word"
@@ -85,16 +118,69 @@ const WordListScreen = () => {
         onChangeText={setMeaning}
       />
 
+      {/* Language Pickers */}
+      <Text style={styles.label}>From (Source Language)</Text>
+      <Picker
+        selectedValue={sourceLang}
+        style={styles.picker}
+        onValueChange={setSourceLang}
+      >
+        {languageOptions.map((lang) => (
+          <Picker.Item label={lang} value={lang} key={lang} />
+        ))}
+      </Picker>
+
+      <Text style={styles.label}>To (Target Language)</Text>
+      <Picker
+        selectedValue={targetLang}
+        style={styles.picker}
+        onValueChange={setTargetLang}
+      >
+        {languageOptions.map((lang) => (
+          <Picker.Item label={lang} value={lang} key={lang} />
+        ))}
+      </Picker>
+
+      {/* Category Picker */}
+      <Text style={styles.label}>Category</Text>
+      <Picker
+        selectedValue={category}
+        style={styles.picker}
+        onValueChange={setCategory}
+      >
+        {categories.slice(1).map((cat) => (
+          <Picker.Item label={cat} value={cat} key={cat} />
+        ))}
+      </Picker>
+
+      {/* Add/Update Button */}
       <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-        <Text style={styles.saveText}>{editingIndex !== null ? 'Update Word' : 'Add Word'}</Text>
+        <Text style={styles.saveText}>
+          {editingIndex !== null ? 'Update Word' : 'Add Word'}
+        </Text>
       </TouchableOpacity>
 
+      {/* Filter by Category */}
+      <Text style={styles.label}>Filter by Category</Text>
+      <Picker
+        selectedValue={filter}
+        style={styles.picker}
+        onValueChange={setFilter}
+      >
+        {categories.map((cat) => (
+          <Picker.Item label={cat} value={cat} key={cat} />
+        ))}
+      </Picker>
+
+      {/* Word List */}
       <FlatList
-        data={words}
+        data={filteredWords}
         keyExtractor={(_, index) => index.toString()}
         renderItem={({ item, index }) => (
           <View style={styles.wordItem}>
-            <Text style={styles.wordText}>{item.word} ➜ {item.meaning}</Text>
+            <Text style={styles.wordText}>
+              {item.word} ➜ {item.meaning} ({item.category}) [{item.sourceLang} ➜ {item.targetLang}]
+            </Text>
             <View style={styles.actions}>
               <TouchableOpacity onPress={() => handleEdit(index)}>
                 <Text style={styles.editBtn}>Edit</Text>
@@ -113,16 +199,8 @@ const WordListScreen = () => {
 export default WordListScreen;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: '#fffbe6',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 15,
-  },
+  container: { flex: 1, padding: 20, backgroundColor: '#fffbe6' },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 15 },
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
@@ -130,6 +208,8 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 10,
   },
+  label: { fontWeight: 'bold', marginTop: 10 },
+  picker: { height: 50, width: '100%', marginBottom: 10 },
   saveBtn: {
     backgroundColor: '#3498db',
     padding: 12,
@@ -137,10 +217,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     alignItems: 'center',
   },
-  saveText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
+  saveText: { color: 'white', fontWeight: 'bold' },
   wordItem: {
     backgroundColor: '#fff',
     borderRadius: 8,
@@ -148,21 +225,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     elevation: 2,
   },
-  wordText: {
-    fontSize: 16,
-    marginBottom: 6,
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 15,
-  },
-  editBtn: {
-    color: '#2980b9',
-    fontWeight: 'bold',
-  },
-  deleteBtn: {
-    color: '#e74c3c',
-    fontWeight: 'bold',
-  },
+  wordText: { fontSize: 16, marginBottom: 6 },
+  actions: { flexDirection: 'row', justifyContent: 'flex-end' },
+  editBtn: { color: '#2980b9', fontWeight: 'bold', marginRight: 15 },
+  deleteBtn: { color: '#e74c3c', fontWeight: 'bold' },
 });
